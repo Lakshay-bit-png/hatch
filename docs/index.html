@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stash — one keystroke from the top of your screen</title>
+<meta name="description" content="A macOS menu-bar app that drops down from the top of your screen: clipboard history, focus timer, to-dos, notes, a file shelf, games, system vitals and Claude.">
+<link rel="icon" type="image/png" href="icon.png?v=2">
+<style>
+  :root{
+    --bg:#0b0b0c; --panel:#000; --card:#141416; --line:rgba(255,255,255,.09);
+    --text:rgba(255,255,255,.94); --muted:rgba(255,255,255,.52); --faint:rgba(255,255,255,.32);
+    --clay:#7377fd; --fill:rgba(255,255,255,.07);
+    --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font-smoothing:antialiased;line-height:1.55}
+  a{color:inherit}
+  .wrap{width:min(1080px,calc(100% - 40px));margin:0 auto}
+
+  /* nav */
+  nav{position:sticky;top:0;z-index:20;backdrop-filter:blur(14px);background:rgba(11,11,12,.78);border-bottom:1px solid var(--line)}
+  nav .wrap{display:flex;align-items:center;justify-content:space-between;height:60px}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:650;letter-spacing:-.3px;font-size:17px}
+  .brand .glyph{width:22px;height:22px;border-radius:6px;background:#161618;position:relative;overflow:hidden;flex:none}
+  .brand .glyph{background:linear-gradient(135deg,#7377fd,#3e218c)}
+  .brand .glyph::after{content:"";position:absolute;left:50%;bottom:22%;transform:translateX(-50%);width:62%;height:34%;background:#fff;border-radius:3px}
+  .btn{display:inline-flex;align-items:center;gap:8px;background:var(--text);color:#000;border-radius:999px;padding:9px 18px;font-size:14px;font-weight:600;text-decoration:none;transition:transform .16s,opacity .16s}
+  .btn:hover{transform:translateY(-1px)}
+  .btn.ghost{background:var(--fill);color:var(--text)}
+
+  /* hero */
+  header{padding:76px 0 40px;text-align:center}
+  h1{font-size:clamp(38px,6vw,64px);line-height:1.06;letter-spacing:-2.2px;margin:0 0 18px;font-weight:600}
+  h1 em{font-style:normal;color:var(--clay)}
+  .sub{font-size:clamp(16px,2.2vw,20px);color:var(--muted);max-width:620px;margin:0 auto 28px;letter-spacing:-.2px}
+  .cta{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-bottom:12px}
+  .meta{color:var(--faint);font-size:13px}
+  kbd{font-family:var(--font);background:var(--fill);border:1px solid var(--line);border-radius:5px;padding:2px 7px;font-size:.85em;color:var(--text)}
+
+  /* panel mock */
+  .stage{margin:88px auto 0;max-width:760px;position:relative;padding:0}
+  .stage img,.stage video{display:block;width:100%;height:auto;border-radius:14px;border:1px solid var(--line);box-shadow:0 30px 70px rgba(0,0,0,.55)}
+  .stage figcaption{margin-top:14px;color:var(--faint);font-size:12.5px}
+  .stage::before{content:"";position:absolute;inset:-60px -40px 40px;background:radial-gradient(ellipse at top,rgba(217,119,87,.16),transparent 65%);pointer-events:none}
+  .panel{position:relative;background:var(--panel);border:1px solid var(--line);border-top:0;border-radius:0 0 22px 22px;overflow:hidden}
+  .panel .bar{display:flex;align-items:center;gap:8px;padding:0 14px;height:44px;border-bottom:1px solid var(--line)}
+  .tabs{display:flex;gap:2px;background:var(--fill);border-radius:999px;padding:3px}
+  .tabs i{display:grid;place-items:center;width:30px;height:21px;border-radius:999px;font-size:11px;font-style:normal;color:var(--muted)}
+  .tabs i.on{background:var(--text);color:#000}
+  .search{flex:1;display:flex;align-items:center;gap:7px;background:var(--fill);border-radius:999px;padding:6px 11px;color:var(--faint);font-size:12.5px;margin-left:8px}
+  .rows{padding:6px 9px}
+  .row{display:flex;align-items:center;gap:11px;height:44px;padding:0 11px;border-radius:9px;font-size:12.5px}
+  .row.sel{background:rgba(255,255,255,.11)}
+  .row .ic{width:26px;height:22px;border-radius:5px;background:var(--fill);display:grid;place-items:center;font-size:10px;color:var(--muted);flex:none}
+  .row .tx{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .row .rt{color:var(--faint);font-size:10px;white-space:nowrap}
+  .foot{display:flex;justify-content:space-between;padding:0 16px;height:26px;align-items:center;border-top:1px solid var(--line);color:var(--faint);font-size:10px}
+
+  /* sections */
+  section{padding:64px 0}
+  h2{font-size:clamp(26px,3.6vw,36px);letter-spacing:-1.1px;margin:0 0 10px;font-weight:600}
+  .lede{color:var(--muted);max-width:620px;margin:0 0 36px;font-size:16px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(310px,1fr));gap:18px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:22px;display:flex;flex-direction:column;gap:14px}
+  .card h3{margin:0;font-size:17px;letter-spacing:-.4px;font-weight:600;display:flex;align-items:center;gap:9px}
+  .card h3 .dot{width:26px;height:26px;border-radius:8px;background:var(--fill);display:grid;place-items:center;font-size:13px;flex:none}
+  .card p{margin:0;color:var(--muted);font-size:14.5px}
+  .card ul{margin:0;padding-left:18px;color:var(--muted);font-size:14px}
+  .card li{margin:4px 0}
+  .mock{background:#000;border:1px solid var(--line);border-radius:10px;padding:10px;font-size:11.5px;color:var(--muted);overflow:hidden;min-width:0}
+  .card{min-width:0}
+
+  /* mini mocks */
+  .mini-row{display:flex;align-items:center;gap:8px;padding:5px 7px;border-radius:6px}
+  .mini-row+.mini-row{margin-top:2px}
+  .mini-row.on{background:rgba(255,255,255,.09)}
+  .chip{background:var(--fill);border-radius:999px;padding:2px 8px;font-size:10px;color:var(--muted)}
+  .orbit{position:relative;height:96px;display:grid;place-items:center}
+  .orbit .ring{width:86px;height:86px;border-radius:50%;border:1px dashed rgba(255,255,255,.14);position:absolute}
+  .orbit .arc{width:86px;height:86px;border-radius:50%;position:absolute;background:conic-gradient(var(--text) 0 62%,transparent 62%);-webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 2px),#000 0);mask:radial-gradient(farthest-side,transparent calc(100% - 2px),#000 0)}
+  .orbit .earth{width:38px;height:38px;border-radius:50%;background:radial-gradient(circle at 34% 28%,#66b7ff,#0b2a66);box-shadow:0 0 16px rgba(60,140,255,.35)}
+  .orbit .rocket{position:absolute;width:9px;height:13px;background:#fff;border-radius:50% 50% 3px 3px;transform:translateY(-43px)}
+  .tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;width:100%}
+  .tiles b{height:34px;border-radius:5px;display:grid;place-items:center;font-size:13px;font-weight:700;color:#fff;background:rgba(255,255,255,.06)}
+  .gauges{display:flex;gap:14px;justify-content:center}
+  .gauge{width:56px;text-align:center}
+  .gauge .ring{width:48px;height:48px;border-radius:50%;margin:0 auto 5px;background:conic-gradient(var(--clay) 0 var(--p),rgba(255,255,255,.08) var(--p));-webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 5px),#000 0);mask:radial-gradient(farthest-side,transparent calc(100% - 5px),#000 0)}
+  .gauge span{font-size:10px;color:var(--faint)}
+  .bubble{background:rgba(255,255,255,.1);border-radius:11px;padding:7px 10px;font-size:11.5px;margin-left:auto;max-width:78%}
+  .reply{font-size:11.5px;color:var(--text);margin-top:8px}
+
+  /* table */
+  table{width:100%;border-collapse:collapse;font-size:14.5px}
+  th,td{text-align:left;padding:11px 12px;border-bottom:1px solid var(--line)}
+  th{color:var(--faint);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.5px}
+  td:first-child{white-space:nowrap;width:150px}
+
+  footer{border-top:1px solid var(--line);padding:34px 0 60px;color:var(--faint);font-size:13.5px}
+  footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
+
+  @media(max-width:640px){
+    header{padding:48px 0 26px}
+    section{padding:44px 0}
+    td:first-child{width:auto}
+  }
+</style>
+</head>
+<body>
+
+<nav><div class="wrap">
+  <div class="brand"><span class="glyph"></span> Stash</div>
+  <a class="btn" href="#download">Download</a>
+</div></nav>
+
+<header><div class="wrap">
+  <h1>Everything you need,<br><em>one keystroke</em> from the top.</h1>
+  <p class="sub">Stash lives in your menu bar and drops down from the top of the screen. Clipboard history, a focus timer, tasks, notes, a file shelf, system vitals, Claude, and a few games — without a single window in your way.</p>
+  <div class="cta">
+    <a class="btn" href="#download">Download for macOS</a>
+    <a class="btn ghost" href="#features">See what's inside</a>
+  </div>
+  <p class="meta">macOS 14+ · Apple silicon &amp; Intel · 2.4 MB · free · press <kbd>⌘⌥V</kbd> anywhere</p>
+
+  <figure class="stage">
+    <video src="demo.mp4" poster="demo-poster.jpg" autoplay loop muted playsinline preload="metadata"
+           aria-label="The Stash panel dropping from the top of the screen, switching tabs and pasting a clip."></video>
+    <figcaption>Stash open on the clipboard tab. The tab bar switches tools; the panel never leaves the top of the screen.</figcaption>
+  </figure>
+
+</div></header>
+
+<section id="features"><div class="wrap">
+  <h2>Nine tabs, one panel</h2>
+  <p class="lede">Every tool sits behind the same shortcut and the same dark panel. Switch tabs, never windows.</p>
+
+  <div class="grid">
+
+    <div class="card">
+      <h3><span class="dot">📋</span> Clipboard history</h3>
+      <p>Everything you copy — text, links, images, files — kept and searchable. Pick one and it pastes straight into whatever you were doing.</p>
+      <div class="mock">
+        <div class="mini-row on"><span>🔗</span><span>https://anthropic.com</span></div>
+        <div class="mini-row"><span>📄</span><span>npm run build --workspace=web</span></div>
+        <div class="mini-row"><span>🖼</span><span>Screenshot · 2.1 MB</span></div>
+      </div>
+      <ul>
+        <li>Pin the clips you keep reaching for</li>
+        <li>Password-manager clips are never recorded</li>
+        <li>Holds up to 2,500 items, entirely on your Mac</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h3><span class="dot">⏱</span> Focus timer</h3>
+      <p>A pomodoro with a rocket orbiting Earth — the orbit is the progress bar. Set any length, pick the chime, and keep a small countdown under the notch while you work.</p>
+      <div class="mock"><div class="orbit"><div class="ring"></div><div class="arc"></div><div class="earth"></div><div class="rocket"></div></div></div>
+      <ul>
+        <li>Any duration, typed or nudged</li>
+        <li>Countdown in the menu bar and under the notch</li>
+        <li>Eight completion sounds, or silence</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h3><span class="dot">✓</span> To-do list</h3>
+      <p>Type, hit Return, done. Finished tasks strike through and drop to the bottom; open ones stay on top.</p>
+      <div class="mock">
+        <div class="mini-row"><span>○</span><span>Ship the landing page</span></div>
+        <div class="mini-row"><span>○</span><span>Reply to the design thread</span></div>
+        <div class="mini-row" style="opacity:.45"><span>✓</span><span style="text-decoration:line-through">Fix the paste shortcut</span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3><span class="dot">📝</span> Notes</h3>
+      <p>A scratchpad that never asks you to name anything. The first line becomes the title, and every keystroke saves itself.</p>
+      <div class="mock">
+        <div class="mini-row on"><span>Release checklist</span></div>
+        <div class="mini-row" style="color:var(--faint)"><span>notarise · dmg · update the site</span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3><span class="dot">📥</span> File shelf</h3>
+      <p>Park files you are moving between apps. Add them with the picker, drag them straight back out into Finder, Mail or anywhere else.</p>
+      <div class="mock">
+        <div class="mini-row"><span>📄</span><span>contract-final.pdf</span><span class="chip">2.4 MB</span></div>
+        <div class="mini-row"><span>🖼</span><span>hero@2x.png</span><span class="chip">890 KB</span></div>
+      </div>
+      <ul>
+        <li>References files, never copies them — no disk cost</li>
+        <li>Tells you when something has moved or been deleted</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h3><span class="dot">✦</span> Ask Claude</h3>
+      <p>Bring your own Anthropic API key and chat without leaving the panel. Right-click any clip to send it straight into the conversation.</p>
+      <div class="mock">
+        <div class="bubble">what does this regex do?</div>
+        <div class="reply">It matches a semver string and captures the major, minor and patch parts separately…</div>
+      </div>
+      <ul>
+        <li>Replies stream in as they are written</li>
+        <li>Your key is stored in the macOS Keychain</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h3><span class="dot">⚡</span> System health</h3>
+      <p>CPU, memory, battery and every mounted disk, read straight from the kernel. Sampling only runs while you are looking at it.</p>
+      <div class="mock"><div class="gauges">
+        <div class="gauge"><div class="ring" style="--p:23%"></div><span>CPU 23%</span></div>
+        <div class="gauge"><div class="ring" style="--p:61%"></div><span>RAM 61%</span></div>
+        <div class="gauge"><div class="ring" style="--p:87%"></div><span>Battery</span></div>
+      </div></div>
+    </div>
+
+    <div class="card">
+      <h3><span class="dot">🎮</span> Something to unwind with</h3>
+      <p>A few games for the ninety seconds while a build runs, or whenever you need to look away from work. Best scores are remembered.</p>
+      <div class="mock">
+        <div class="tiles">
+          <b style="background:#4d4d4d">2</b><b style="background:#d97757">16</b><b></b><b style="background:#e07a48">64</b>
+          <b></b><b style="background:#4d4d4d">4</b><b style="background:#e8a33d">128</b><b></b>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3><span class="dot">⚙</span> Yours to set up</h3>
+      <p>Rebind the shortcut to any combination, switch between light, dark and system, cap the history, and decide whether Stash pastes for you or just copies.</p>
+      <div class="mock">
+        <div class="mini-row"><span>Theme</span><span class="chip" style="margin-left:auto">System · Light · Dark</span></div>
+        <div class="mini-row"><span>Shortcut</span><span class="chip" style="margin-left:auto">⌥⌘V</span></div>
+      </div>
+    </div>
+
+  </div>
+</div></section>
+
+<section id="download"><div class="wrap">
+  <h2>Download</h2>
+  <p class="lede">One 2.4 MB disk image. No account, no installer, no background updater.</p>
+  <div class="cta" style="justify-content:flex-start">
+    <a class="btn" href="Stash.dmg" download>Download Stash.dmg</a>
+  </div>
+</div></section>
+
+<footer><div class="wrap">
+  <span>Stash — a small macOS utility.</span>
+  <span>Built with Swift and SwiftUI.</span>
+</div></footer>
+
+</body>
+</html>
